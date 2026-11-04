@@ -1,0 +1,44 @@
+{
+  "recorded_date": "2026-11-04",
+  "source": "AI Hub 비언어적 음향 데이터 (dataSetSn=644)",
+  "source_url": "https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=644",
+  "original_file_count": 5087,
+  "original_total_bytes": 19754747555,
+  "uploaded_original_audio": false,
+  "uploaded_original_labels": false,
+  "uploaded_archives": false,
+  "model_class_order": [
+    "공작기계음",
+    "금속 충돌음",
+    "비명"
+  ],
+  "model_class_ids": [
+    "M_1_01",
+    "O_3_03",
+    "H_3_03"
+  ],
+  "expected_counts": {
+    "train": {
+      "공작기계음": 509,
+      "금속 충돌음": 805,
+      "비명": 75
+    },
+    "val": {
+      "공작기계음": 127,
+      "금속 충돌음": 201,
+      "비명": 19
+    },
+    "test": {
+      "공작기계음": 79,
+      "금속 충돌음": 124,
+      "비명": 12
+    }
+  },
+  "code_sha256": {
+    "mymodel/dataset.py": "9a4cb78a2b69499c3c4c9e8951543377bb448bd3a74fa2e31be29581988ffd23",
+    "mymodel/model.py": "1a84b6fad0fd6c1ac54934ead28307144a4f2e3db73d22447fabc02fea687280",
+    "mymodel/main.py": "d361cd0bb6d5dd1fbbd2e926a2f9cb7e36ed6adb51e2f42fa6ee2c4ea8c054b0",
+    "mymodel/requirements.txt": "ea0c75e81d951a9b0b504a13940981b821c770643055b46a702be1255268922e"
+  },
+  "note": "원음·원본 JSON·ZIP 파일을 포함하지 않습니다. DATA_FILES.csv는 로컬 자료의 상대경로와 크기 목록입니다."
+}

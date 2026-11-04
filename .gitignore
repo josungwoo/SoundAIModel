@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+venv/
+model/
+mymodel/results/
+mymodel/docs/
+mymodel/dataset_backup.py
+datasets/extracted/
+datasets/zipped/
+datasets/*.zip
+*.pt
+*.pth
