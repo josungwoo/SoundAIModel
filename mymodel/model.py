@@ -33,3 +33,44 @@ class SmallCNN(nn.Module):
         # 여기서 softmax를 하지 않습니다. 학습의 CrossEntropyLoss가 필요한 계산을 합니다.
         return self.layers(features)
 
+
+class Resnet34(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
+        
+        # CONV1 단계 최초 계층 7-7 필터 
+        self.start = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+        )
+        # CONV2 단계
+        self.conv2 = nn.ModuleList([
+            self.blocks(64, 64),
+            self.blocks(64, 64),
+            self.blocks(64, 64),
+        ])
+        
+        # CONV3 단계
+        self.conv3 = nn.ModuleList([
+            self.blocks(64, 128, 2)
+            self.blocks(128, 128)
+            self.blocks(128, 128)
+            self.blocks(128, 128)
+        ])
+        
+    
+
+    def blocks(self, input, output, stride=1):
+        block = nn.Sequential(
+            nn.Conv2d(input,output,kernel_size=3,stride=stride,padding=1,bias=False,),
+            nn.BatchNorm2d(output),
+            nn.ReLU(),
+            nn.Conv2d(output,output,kernel_size=3,stride=1,padding=1,bias=False,),
+            nn.BatchNorm2d(output),
+        )
+        return block  
+
+

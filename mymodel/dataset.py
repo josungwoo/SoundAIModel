@@ -149,23 +149,28 @@ def prepare_data():
     # 1. MP3 목록을 만듭니다. 같은 분할 안에서 이름이 같은 JSON과 짝을 찾습니다.
     # 파일명은 짝 찾기에만 사용하며, 소리의 정답은 JSON에서 읽습니다.
     audio_files = {}
-    for path in sorted(DATA_DIR.rglob("*.mp3")):
-        partition = path.relative_to(DATA_DIR).parts[0]
-        key = (partition, path.stem)
-        if key not in audio_files:
+    for path in sorted(DATA_DIR.rglob("*.mp3")): # DATA_DIR 폴더 아래에 mp3 파일을 찾아서 리스트로 만든다
+        partition = path.relative_to(DATA_DIR).parts[0] # DATA_DIR 아래 첫번째 폴더 이름을 가져온다
+        key = (partition, path.stem) # 파일 탐색에 사용할 키값 (폴더이름, 파일이름[확장자제외])
+        # 오디오의 경로를 저장하는 딕셔너리를 만든다
+        if key not in audio_files: 
             audio_files[key] = []
         audio_files[key].append(path)
 
-    official = {"1.Training": [], "2.Validation": []}
+    official = {"1.Training": [], "2.Validation": []} # 
+    # [공작기계음 개수, 금속 충돌음 개수, 비명 개수]
     label_counts = {"1.Training": [0, 0, 0], "2.Validation": [0, 0, 0]}
-    excluded = []
+    excluded = [] # 예외를 저장할 배열 
 
     # 2. 세 종류의 JSON만 선택하고, 실제 음원이 정상적으로 읽히는지 확인합니다.
-    for label_path in sorted(DATA_DIR.rglob("*.json")):
-        partition = label_path.relative_to(DATA_DIR).parts[0]
+
+    for label_path in sorted(DATA_DIR.rglob("*.json")): # DATA_DIR 폴더 아래에 json 파일을 찾아서 리스트로 만든다
+        partition = label_path.relative_to(DATA_DIR).parts[0]# DATA_DIR 아래 첫번째 폴더 이름을 가져온다
+        # 
         if partition not in official:
             continue
 
+        """여기서 부터 다시 봐야 한다,여기서 부터 다시 봐야 한다,여기서 부터 다시 봐야 한다,여기서 부터 다시 봐야 한다,여기서 부터 다시 봐야 한다 """
         # 잘못된 자료는 이유를 기록하고 제외합니다. 무음으로 바꿔 학습하지 않습니다.
         try:
             metadata = json.loads(label_path.read_bytes())

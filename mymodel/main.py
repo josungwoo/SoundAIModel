@@ -35,7 +35,7 @@ def choose_device(name):
         raise ValueError("이 Mac에서 MPS를 사용할 수 없습니다. --device cpu를 사용하세요.")
     return torch.device(name)
 
-
+#############################################################################
 def calculate_metrics(confusion):
     """행=실제 정답, 열=예측인 3×3 혼동행렬에서 성적을 계산합니다."""
     tp = np.diag(confusion)                  # 대각선: 정답과 예측이 같은 개수입니다.
@@ -63,7 +63,7 @@ def evaluate_model(model, loader, device):
     model.eval()  # 평가 모드입니다. 가중치를 수정하거나 초기화하는 명령이 아닙니다.
     confusion = np.zeros((3, 3), dtype=np.int64)
     with torch.no_grad():  # 평가에는 역전파가 없어 기울기 계산 기록이 필요 없습니다.
-        for features, targets in loader:
+        for features, targets in loader: 
             logits = model(features.to(device))
             if not torch.isfinite(logits).all():
                 raise ValueError("평가 출력에 잘못된 숫자가 있습니다.")
@@ -71,10 +71,10 @@ def evaluate_model(model, loader, device):
             for actual, guess in zip(targets.tolist(), predicted.tolist()):
                 confusion[actual, guess] += 1
     return calculate_metrics(confusion)
+#############################################################################
 
-
+# 에포크 별 손실률과 정확도를 그래프로 그려서 저장한다
 def plot_history(history, path):
-    """실제로 끝난 에포크만 그립니다. 한 에포크라면 점 하나가 나오는 것이 맞습니다."""
     epochs = [row["epoch"] for row in history]
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
     axes[0].plot(epochs, [r["train_loss"] for r in history], "o-")
@@ -89,9 +89,8 @@ def plot_history(history, path):
     fig.savefig(path, dpi=150)
     plt.close(fig)  # 다 그린 그림의 메모리를 정리합니다.
 
-
+# 3by3 행렬로 예측과 정답 매트릭스를 만들어서 저장한다
 def plot_confusion(result, path, split_name):
-    """한글 글꼴 설치 없이도 보이도록 그림의 이름표는 영어로 표시합니다."""
     matrix = np.array(result["confusion_matrix"])
     fig, ax = plt.subplots(figsize=(6, 5), layout="constrained")
     image = ax.imshow(matrix, cmap="Blues", vmin=0)
@@ -105,7 +104,7 @@ def plot_confusion(result, path, split_name):
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
-
+# 학습 하는 함수 !! 중요 -------------------------------------------------------------
 def train(args, device):
     split = prepare_data()
     # 새 학습은 새 결과 폴더를 씁니다. 이전 학습 가중치·성적을 덮어쓰지 않습니다.
@@ -123,6 +122,8 @@ def train(args, device):
                             batch_size=args.batch_size, shuffle=False, num_workers=0)
     model = SmallCNN().to(device)  # 기존 모델 가중치를 불러오지 않고 새로 시작합니다.
     loss_function = nn.CrossEntropyLoss()  # 정답은 정수 0/1/2, 입력은 softmax 전 점수입니다.
+
+    # 옵티마이저를 사용하여 모델의 가중치를 조절합니다.
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     history = []
     best_f1 = -1.0
@@ -240,6 +241,14 @@ def predict(args, device):
     print("저장:", output)
 
 
+
+
+
+
+
+
+#############################################################################
+# 파서를 통해서 CLI 수준에서 AI 모델의 동작을 제어하는 단계 
 def main():
     # 파서를 사용하여 명령어 파싱을 위한 객체를 생성합니다.
     parser = argparse.ArgumentParser(description=" 기본CNN 음향 분류") 
@@ -269,11 +278,16 @@ def main():
     np.random.seed(42)
     torch.manual_seed(42)  # 난수 시작점을 맞춥니다. MPS의 완전한 수치 재현을 보장하지는 않습니다.
     torch.set_num_threads(2)  # CPU에서 동시에 계산할 작업 수를 작게 고정합니다.
+
+
+    # 필수는 아님 // 데이터  확인용도 
     if args.command == "prepare":
         split = prepare_data()
         print(json.dumps({"summary": split["summary"], "excluded": split["excluded"],
                           "raw_id_overlap": split["raw_id_overlap"]}, ensure_ascii=False, indent=2))
         return
+
+
     device = choose_device(args.device) # 동적으로 변환된 디바이스값을 반환
     if args.command == "train":
         train(args, device)
