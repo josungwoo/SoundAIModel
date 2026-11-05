@@ -1,4 +1,4 @@
-"""준비·학습·평가·한 파일 예측을 실행합니다. 사용법: python main.py --help
+"""준비·학습·평가를 실행합니다. 사용법: python main.py --help
 
 소리 입력은 dataset.py, 신경망 구조는 model.py에 있고 실행 절차는 이 파일에 있습니다.
 학습과 평가의 차이가 드러나도록 기본적인 반복문으로 작성했습니다.
@@ -6,10 +6,9 @@
 
 import argparse # 터미널 명령어 파싱을 위한 라이브러리 
 from datetime import datetime
-import importlib.metadata
+from zoneinfo import ZoneInfo
 import json
 from pathlib import Path
-import platform
 import random
 import sys
 import time
@@ -23,9 +22,12 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from dataset import (CLASS_IDS, CLASS_NAMES, PLOT_NAMES, RESULTS, SoundDataset,
-                     load_waveform, prepare_data, save_json)
+                     prepare_data, save_json)
 from model import SmallCNN
+from model import Resnet34
 
+
+current_model = Resnet34
 
 def choose_device(name):
     """auto는 Mac GPU가 있으면 MPS, 없으면 CPU를 고릅니다."""
@@ -104,23 +106,42 @@ def plot_confusion(result, path, split_name):
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
+def model_define(device, state=None):
+    # 저장 정보를 전달하지 않으면 새 학습용 모델을 만듭니다.
+    if state is None:
+        model = current_model().to(device)
+
+    # 저장 정보를 전달하면, 저장된 종류에 맞는 모델을 복원합니다.
+    else:
+        model_name = state.get("model_name", "SmallCNN")
+
+        if model_name == "SmallCNN":
+            model = SmallCNN().to(device)
+        elif model_name == "Resnet34":
+            model = Resnet34().to(device)
+        else:
+            raise ValueError("지원하지 않는 모델입니다.")
+
+        model.load_state_dict(state["model_state"])
+
+    return model
+
 # 학습 하는 함수 !! 중요 -------------------------------------------------------------
 def train(args, device):
     split = prepare_data()
-    # 새 학습은 새 결과 폴더를 씁니다. 이전 학습 가중치·성적을 덮어쓰지 않습니다.
-    run = RESULTS / datetime.now().strftime("train_%Y%m%d_%H%M%S_%f")
-    run.mkdir(parents=True)
+    # 한국 시간 기준 연월일_시분으로 저장합니다. 초와 소수초는 넣지 않습니다.
+    run = RESULTS / datetime.now(ZoneInfo("Asia/Seoul")).strftime("train_%Y%m%d_%H%M")
+    # 같은 분에 다시 실행해도 기존 가중치와 기록을 덮어쓰지 않습니다.
+    try:
+        run.mkdir(parents=True)
+    except FileExistsError as error:
+        raise ValueError("같은 한국 시간 분의 학습 폴더가 이미 있습니다. 다음 분에 다시 실행하세요.") from error
     save_json(run / "splits.json", split)
-    environment = {"python": sys.version, "macos": platform.mac_ver()[0],
-                   "architecture": platform.machine(), "device": str(device),
-                   "packages": {name: importlib.metadata.version(name) for name in
-                                ["torch", "torchaudio", "numpy", "soundfile", "matplotlib"]}}
-    save_json(run / "environment.json", environment)
     train_loader = DataLoader(SoundDataset(split["parts"]["train"], split["settings"]),
                               batch_size=args.batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(SoundDataset(split["parts"]["val"], split["settings"]),
                             batch_size=args.batch_size, shuffle=False, num_workers=0)
-    model = SmallCNN().to(device)  # 기존 모델 가중치를 불러오지 않고 새로 시작합니다.
+    model = model_define(device)  # 기존 모델 가중치를 불러오지 않고 새로 시작합니다.
     loss_function = nn.CrossEntropyLoss()  # 정답은 정수 0/1/2, 입력은 softmax 전 점수입니다.
 
     # 옵티마이저를 사용하여 모델의 가중치를 조절합니다.
@@ -161,10 +182,11 @@ def train(args, device):
             if val["macro_f1"] > best_f1:
                 best_f1 = val["macro_f1"]
                 # CPU로 복사해 저장하면 CPU 시연에서도 다시 읽기 쉽습니다.
-                torch.save({"model_state": {k: v.detach().cpu() for k, v in model.state_dict().items()},
+                torch.save({"model_name": current_model.__name__,"model_state": {k: v.detach().cpu() for k, v in model.state_dict().items()},
                             "class_names": CLASS_NAMES, "class_ids": CLASS_IDS,
                             "settings": split["settings"], "epoch": epoch, "seed": 42,
-                            "batch_size": args.batch_size, "learning_rate": args.learning_rate},
+                            "batch_size": args.batch_size, "learning_rate": args.learning_rate,
+                            },
                            run / "best.pt")
             print(f"epoch {epoch}: loss={row['train_loss']:.4f}, train ACC={row['train_accuracy']:.4f}, "
                   f"val ACC={val['accuracy']:.4f}, val Macro F1={val['macro_f1']:.4f}", flush=True)
@@ -195,8 +217,7 @@ def load_trained_model(run_name, device):
     state = torch.load(run / "best.pt", map_location="cpu", weights_only=True)
     if state["class_ids"] != CLASS_IDS or state["class_names"] != CLASS_NAMES:
         raise ValueError("저장 모델의 종류 순서가 현재 코드와 다릅니다.")
-    model = SmallCNN().to(device)
-    model.load_state_dict(state["model_state"])
+    model = model_define(device, state)
     model.eval()
     return model, state, run
 
@@ -218,35 +239,6 @@ def evaluate(args, device):
     print(json.dumps(result, ensure_ascii=False, indent=2))
     print("저장:", output)
 
-# 예측
-def predict(args, device):
-    model, state, run = load_trained_model(args.run, device)
-    # 정답 JSON이나 파일 이름을 예측에 사용하지 않습니다. 지정 음원 파형만 읽습니다.
-    waveform = load_waveform(args.audio, state["settings"], start=args.start)
-    feature = SoundDataset([], state["settings"]).make_feature(waveform)
-    with torch.no_grad():
-        logits = model(feature.unsqueeze(0).to(device))  # 한 자료에도 배치 칸이 필요합니다.
-        if not torch.isfinite(logits).all():
-            raise ValueError("예측 출력에 잘못된 숫자가 있습니다.")
-        scores = torch.softmax(logits, dim=1)[0].cpu().tolist()
-    answer = int(np.argmax(scores))
-    result = {"audio": str(Path(args.audio).resolve()), "prediction": CLASS_NAMES[answer],
-              "scores": dict(zip(CLASS_NAMES, scores)), "start_seconds": args.start,
-              "window_policy": "file center" if args.start is None else "user start",
-              "checkpoint": str(run / "best.pt"),
-              "note": "세 종류 중 하나를 고른 점수입니다. 무음·다른 소리·안전 여부는 판정하지 않습니다."}
-    output = run / ("prediction_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f") + ".json")
-    save_json(output, result)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-    print("저장:", output)
-
-
-
-
-
-
-
-
 #############################################################################
 # 파서를 통해서 CLI 수준에서 AI 모델의 동작을 제어하는 단계 
 def main():
@@ -261,13 +253,9 @@ def main():
     evaluation = commands.add_parser("evaluate", help="저장 모델을 재로딩하여 평가합니다.")
     evaluation.add_argument("--split", choices=["val", "test"], default="val")
     evaluation.add_argument("--batch-size", type=int, default=8)
-    prediction = commands.add_parser("predict", help="저장 모델로 음원 한 개를 분류합니다.")
-    prediction.add_argument("--audio", required=True, help="실제 MP3 파일 경로")
-    prediction.add_argument("--start", type=float, help="읽기 시작 시간(초). 생략하면 중앙 창")
-    for command in [training, evaluation, prediction]:
+    for command in [training, evaluation]:
         command.add_argument("--device", choices=["auto", "cpu", "mps"], default="auto")
-    for command in [evaluation, prediction]:
-        command.add_argument("--run", default="latest", help="결과 폴더 이름 또는 절대 경로")
+    evaluation.add_argument("--run", default="latest", help="결과 폴더 이름 또는 절대 경로")
     args = parser.parse_args() 
     if args.command == "train":
         if args.epochs < 1 or args.batch_size < 1 or not 0 < args.learning_rate < float("inf"):
@@ -293,8 +281,6 @@ def main():
         train(args, device)
     elif args.command == "evaluate":
         evaluate(args, device)
-    else:
-        predict(args, device)
 
 
 if __name__ == "__main__":

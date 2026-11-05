@@ -44,12 +44,11 @@ def save_json(path, value):
     path.write_text(json_text, encoding="utf-8")
 
 
-def load_waveform(path, settings, segment=None, start=None):
+def load_waveform(path, settings, segment=None):
     """음원 한 개를 읽고, 길이가 같은 1차원 파형 텐서로 반환합니다.
 
     path: 음원 경로 / settings: 신호처리 설정.
     segment: [시작 초, 끝 초]. 없으면 전체 음원을 대상으로 합니다.
-    start: 읽기 시작 시간(초). 없으면 대상 구간의 중앙에서 읽습니다.
     잡음 제거와 데시벨 측정은 하지 않습니다.
     """
     target_rate = settings["sample_rate"]
@@ -61,7 +60,7 @@ def load_waveform(path, settings, segment=None, start=None):
         original_rate = audio.samplerate
         total_seconds = len(audio) / original_rate
 
-        # 1. 학습·평가는 정답 구간, 일반 predict는 전체 음원을 대상으로 합니다.
+        # 1. 전달받은 정답 구간을 사용합니다. 구간이 없으면 전체 음원이 대상입니다.
         if segment is None:
             left = 0.0
             right = total_seconds
@@ -77,11 +76,6 @@ def load_waveform(path, settings, segment=None, start=None):
         segment_length = right - left
         extra_length = max(0.0, segment_length - duration)
         offset = left + extra_length / 2
-        if start is not None:
-            if not 0 <= start < total_seconds:
-                raise ValueError("시작 시간은 0 이상이며 음원 길이보다 작아야 합니다.")
-            offset = start
-
         # seek는 읽을 위치를 옮깁니다. 초 × 원본 샘플링 주파수 = 샘플 위치.
         start_sample = int(offset * original_rate)
         wanted_samples = round(duration * original_rate)
